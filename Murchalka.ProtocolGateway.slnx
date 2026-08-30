@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/Solution Items/"><File Path="AGENTS.md"/><File Path="Directory.Build.props"/><File Path="Directory.Packages.props"/><File Path="NuGet.Config"/><File Path="README.md"/><File Path="murchalka.module.yaml"/></Folder>
+  <Folder Name="/src/"><Project Path="src/Murchalka.ProtocolGateway/Murchalka.ProtocolGateway.csproj"/></Folder>
+  <Folder Name="/tests/"><Project Path="tests/Murchalka.ProtocolGateway.Tests/Murchalka.ProtocolGateway.Tests.csproj"/></Folder>
+</Solution>

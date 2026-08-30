@@ -1,0 +1,1 @@
+{"endpoint":"http://127.0.0.1:5088","allowAnonymousLoopback":false,"tlsCertificateSecret":null,"tlsCertificatePasswordSecret":null,"maximumPayloadBytes":1048576,"maximumConcurrency":128,"maximumStreams":64,"requestsPerMinute":600,"requestTimeoutSeconds":120}

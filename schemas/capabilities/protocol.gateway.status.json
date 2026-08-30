@@ -1,0 +1,10 @@
+{
+  "apiVersion": "capabilities.murchalka.dev/v1",
+  "kind": "CapabilityContract",
+  "metadata": { "id": "protocol.gateway.status", "version": "1.0.0", "category": "protocol.gateway", "description": "Discovers the active generic protocol endpoint and bounded route namespaces." },
+  "request": { "schema": "protocol.gateway.status.request.schema.json" },
+  "response": { "schema": "protocol.gateway.status.response.schema.json" },
+  "semantics": { "interaction": "requestResponse", "sideEffect": "none", "idempotency": "readOnly", "streaming": false, "cancellation": "required", "defaultTimeout": "5s", "maxPayloadBytes": 4096 },
+  "security": { "inputDataClasses": ["internal"], "outputDataClasses": ["internal"], "requiredPurpose": "protocol-discovery" },
+  "errors": [{ "code": "module-inactive", "retryable": true, "description": "The protocol gateway listener is inactive." }]
+}

@@ -1,0 +1,100 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+  packages: read
+  id-token: write
+  attestations: write
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.value }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: version
+        shell: bash
+        run: |
+          [[ "${GITHUB_REF_NAME}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]
+          echo "value=${GITHUB_REF_NAME#v}" >> "${GITHUB_OUTPUT}"
+  bundle:
+    needs: validate
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { rid: linux-x64, os: linux, arch: x64 }
+          - { rid: linux-arm64, os: linux, arch: arm64 }
+          - { rid: osx-x64, os: macos, arch: x64 }
+          - { rid: osx-arm64, os: macos, arch: arm64 }
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: |
+            Directory.Packages.props
+            **/*.csproj
+      - name: Authenticate to GitHub Packages
+        shell: bash
+        env:
+          PACKAGE_TOKEN: ${{ github.token }}
+        run: dotnet nuget update source murchalka --username "${GITHUB_ACTOR}" --password "${PACKAGE_TOKEN}" --store-password-in-clear-text --configfile NuGet.Config
+      - run: dotnet restore Murchalka.ProtocolGateway.slnx --configfile NuGet.Config
+      - run: dotnet format Murchalka.ProtocolGateway.slnx --verify-no-changes --no-restore
+      - run: dotnet build Murchalka.ProtocolGateway.slnx --configuration Release --no-restore -p:Version=${{ needs.validate.outputs.version }}
+      - name: Test and conformance
+        run: dotnet run --project tests/Murchalka.ProtocolGateway.Tests/Murchalka.ProtocolGateway.Tests.csproj --configuration Release --no-build --no-restore -- -reporter quiet
+      - run: dotnet restore src/Murchalka.ProtocolGateway/Murchalka.ProtocolGateway.csproj --runtime ${{ matrix.rid }} --configfile NuGet.Config
+      - run: dotnet publish src/Murchalka.ProtocolGateway/Murchalka.ProtocolGateway.csproj --configuration Release --runtime ${{ matrix.rid }} --self-contained false --no-restore --output artifacts/publish/${{ matrix.rid }} -p:Version=${{ needs.validate.outputs.version }}
+      - name: Sign bundle
+        shell: bash
+        env:
+          SIGNING_KEY_PEM: ${{ secrets.MURCHALKA_BUNDLE_SIGNING_KEY_PEM }}
+          SIGNING_KEY_ID: ${{ secrets.MURCHALKA_BUNDLE_SIGNING_KEY_ID }}
+        run: |
+          test -n "${SIGNING_KEY_PEM}" && test -n "${SIGNING_KEY_ID}"
+          key="${RUNNER_TEMP}/bundle-key.pem"; umask 077; printf '%s\n' "${SIGNING_KEY_PEM}" > "${key}"
+          executable="Murchalka.ProtocolGateway"
+          mkdir -p artifacts/release
+          bash packaging/package.sh . artifacts/publish/${{ matrix.rid }} "${key}" "${SIGNING_KEY_ID}" "${{ needs.validate.outputs.version }}" "${{ matrix.os }}" "${{ matrix.arch }}" "${GITHUB_SHA}" "${executable}" "artifacts/release/protocol-gateway-${{ needs.validate.outputs.version }}-${{ matrix.rid }}.murchalka"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: protocol-gateway-${{ matrix.rid }}
+          path: artifacts/release/*.murchalka
+          if-no-files-found: error
+  publish:
+    needs: [validate, bundle]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: protocol-gateway-*
+          merge-multiple: true
+          path: artifacts/release
+      - run: (cd artifacts/release && sha256sum *.murchalka > SHA256SUMS)
+      - uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: artifacts/release/*.murchalka
+      - name: Publish immutable GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          state="$(gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --json isDraft --jq .isDraft 2>/dev/null || true)"
+          [[ "${state}" != "false" ]]
+          if [[ -z "${state}" ]]; then gh release create "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --draft --verify-tag --generate-notes --title "${GITHUB_REF_NAME}"; fi
+          gh release upload "${GITHUB_REF_NAME}" artifacts/release/* --repo "${GITHUB_REPOSITORY}" --clobber
+          gh release edit "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --draft=false

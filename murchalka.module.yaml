@@ -1,0 +1,30 @@
+apiVersion: modules.murchalka.dev/v1
+kind: Module
+metadata:
+  id: dev.murchalka.protocol-gateway
+  name: Murchalka Generic Protocol Gateway
+  version: 0.5.0
+  publisher: dev.murchalka
+  description: Protocol-neutral bounded endpoint gateway for installable external protocol modules.
+  license: Apache-2.0
+compatibility: { moduleSdk: ">=0.5.0 <0.6.0", runtime: ">=0.5.0 <0.6.0", moduleProtocol: "1" }
+artifacts:
+  runtime:
+    - { id: protocol-gateway-process, mode: process, os: [linux, macos], architectures: [x64, arm64], entrypoint: runtime/process/Murchalka.ProtocolGateway, digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000", protocolVersion: 1, requiredHostFeatures: [loopback-listener] }
+provides:
+  capabilities:
+    - { id: protocol.gateway.status, category: protocol.gateway, version: 1.0.0, contract: schemas/capabilities/protocol.gateway.status.json, cardinality: manyConsumers, scope: [global], execution: { kind: requestResponse, idempotency: readOnly, timeout: 5s } }
+optional:
+  capabilities:
+    - { requirementId: protocol-handlers, category: protocol.gateway.handler, version: ">=1.0.0 <2.0.0", cardinality: zeroOrMany, selection: automatic, fallback: no-routes }
+configuration: { schema: schemas/configuration.schema.json, defaults: configuration/defaults.json, restartPolicy: restartModule }
+permissions:
+  data: { read: [], write: [] }
+  secrets: [protocol.gateway.tls-pfx, protocol.gateway.tls-password]
+  network: { outbound: [] }
+  filesystem: { read: [], write: [] }
+  processes: { spawn: false }
+  capabilities: { invoke: [{ category: protocol.gateway.handler }] }
+health: { startupTimeout: 15s, readiness: { interval: 2s, timeout: 2s, failureThreshold: 3 }, liveness: { interval: 30s, timeout: 2s, failureThreshold: 3 } }
+activation: { mode: automaticWhenTrusted, failurePolicy: rollback, hotReload: true, drainTimeout: 30s }
+upgrade: { strategy: sideBySide, rollbackWindow: 7d, stateMigration: none }
