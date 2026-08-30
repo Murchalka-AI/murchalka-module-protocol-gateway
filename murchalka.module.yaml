@@ -3,7 +3,7 @@ kind: Module
 metadata:
   id: dev.murchalka.protocol-gateway
   name: Murchalka Generic Protocol Gateway
-  version: 0.5.0
+  version: 0.5.1
   publisher: dev.murchalka
   description: Protocol-neutral bounded endpoint gateway for installable external protocol modules.
   license: Apache-2.0

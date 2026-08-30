@@ -34,7 +34,7 @@ public sealed class ProtocolGatewayServerTests
 
     /// <summary>Verifies that HTTPS obtains its certificate only through secret leases and completes a TLS handshake.</summary>
     [Fact]
-    public async Task HttpsListenerUsesLeasedEphemeralCertificateAsync()
+    public async Task HttpsListenerUsesLeasedCertificateAsync()
     {
         const string password = "phase8-test";
         using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);

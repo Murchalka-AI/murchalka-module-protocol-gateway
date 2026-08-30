@@ -100,7 +100,11 @@ internal sealed class ProtocolGatewayServer : IAsyncDisposable
                 ? null
                 : await _dependencies.LeaseSecretAsync(options.TlsCertificatePasswordSecret, "protocol-gateway-tls-password", cancellationToken).ConfigureAwait(false);
             var password = passwordBytes is null ? null : Encoding.UTF8.GetString(passwordBytes);
-            var keyStorage = OperatingSystem.IsMacOS() ? X509KeyStorageFlags.DefaultKeySet : X509KeyStorageFlags.EphemeralKeySet;
+            // Windows Schannel cannot use an in-memory-only private key for TLS credentials.
+            // DefaultKeySet creates a temporary OS-backed key that is removed when the certificate is disposed.
+            var keyStorage = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
+                ? X509KeyStorageFlags.DefaultKeySet
+                : X509KeyStorageFlags.EphemeralKeySet;
             return X509CertificateLoader.LoadPkcs12(pfx, password, keyStorage);
         }
         finally
